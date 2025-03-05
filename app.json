@@ -13,16 +13,44 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSPhotoLibraryUsageDescription": "Uygulamanın videolarınıza erişmesi gerekiyor.",
+        "NSCameraUsageDescription": "Uygulamanın kameranıza erişmesi gerekiyor.",
+        "NSMicrophoneUsageDescription": "Uygulamanın mikrofonunuza erişmesi gerekiyor."
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
-      }
+      },
+      "permissions": [
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "RECORD_AUDIO"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Uygulamanın videolarınıza erişmesi gerekiyor.",
+          "cameraPermission": "Uygulamanın kameranıza erişmesi gerekiyor."
+        }
+      ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Uygulamanın videolarınıza erişmesi gerekiyor.",
+          "savePhotosPermission": "Uygulamanın videolarınızı kaydetmesi gerekiyor.",
+          "isAccessMediaLocationEnabled": true
+        }
+      ]
+    ]
   }
 }
