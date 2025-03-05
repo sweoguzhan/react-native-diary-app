@@ -1,5 +1,5 @@
-import React, { useState, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
+import React, { useState, useRef, useEffect } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Animated } from 'react-native';
 import { Video, AVPlaybackStatus, ResizeMode } from 'expo-av';
 import Slider from '@react-native-community/slider';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -16,7 +16,27 @@ const VideoCropScreen = () => {
   const [duration, setDuration] = useState(0);
   const [position, setPosition] = useState(0);
   const [startTime, setStartTime] = useState(0);
-  const [endTime, setEndTime] = useState(5); // 5 saniye 
+  const [endTime, setEndTime] = useState(5); // 5 saniye varsayılan
+  
+  // Reanimated yerine React Native Animated kullanın
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const translateAnim = useRef(new Animated.Value(20)).current;
+
+  useEffect(() => {
+    // Ekran yüklendiğinde animasyon başlat
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 500,
+        useNativeDriver: true
+      }),
+      Animated.timing(translateAnim, {
+        toValue: 0,
+        duration: 500,
+        useNativeDriver: true
+      })
+    ]).start();
+  }, []);
 
   const handleVideoLoad = (status: AVPlaybackStatus) => {
     if (status.isLoaded && status.durationMillis) {
@@ -53,39 +73,49 @@ const VideoCropScreen = () => {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Video Kırpma</Text>
-      <Text style={styles.subtitle}>5 saniyelik bir bölüm seçin</Text>
-      
-      <Video
-        ref={videoRef}
-        source={{ uri: videoUri }}
-        style={styles.video}
-        useNativeControls
-        resizeMode={ResizeMode.CONTAIN}
-        onLoad={handleVideoLoad}
-        onPlaybackStatusUpdate={handlePlaybackStatusUpdate}
-      />
-      
-      <View style={styles.cropControls}>
-        <Text style={styles.timeText}>
-          Başlangıç: {startTime.toFixed(1)}s - Bitiş: {endTime.toFixed(1)}s
-        </Text>
+      <Animated.View 
+        style={[
+          styles.contentContainer, 
+          {
+            opacity: fadeAnim,
+            transform: [{ translateY: translateAnim }]
+          }
+        ]}
+      >
+        <Text style={styles.title}>Video Kırpma</Text>
+        <Text style={styles.subtitle}>5 saniyelik bir bölüm seçin</Text>
         
-        <Slider
-          style={styles.slider}
-          minimumValue={0}
-          maximumValue={Math.max(0, duration - 5)}
-          value={startTime}
-          onValueChange={handleSliderChange}
-          minimumTrackTintColor="#007AFF"
-          maximumTrackTintColor="#ddd"
-          thumbTintColor="#007AFF"
+        <Video
+          ref={videoRef}
+          source={{ uri: videoUri }}
+          style={styles.video}
+          useNativeControls
+          resizeMode={ResizeMode.CONTAIN}
+          onLoad={handleVideoLoad}
+          onPlaybackStatusUpdate={handlePlaybackStatusUpdate}
         />
-      </View>
-      
-      <TouchableOpacity style={styles.nextButton} onPress={handleNext}>
-        <Text style={styles.nextButtonText}>İleri</Text>
-      </TouchableOpacity>
+        
+        <View style={styles.cropControls}>
+          <Text style={styles.timeText}>
+            Başlangıç: {startTime.toFixed(1)}s - Bitiş: {endTime.toFixed(1)}s
+          </Text>
+          
+          <Slider
+            style={styles.slider}
+            minimumValue={0}
+            maximumValue={Math.max(0, duration - 5)}
+            value={startTime}
+            onValueChange={handleSliderChange}
+            minimumTrackTintColor="#007AFF"
+            maximumTrackTintColor="#ddd"
+            thumbTintColor="#007AFF"
+          />
+        </View>
+        
+        <TouchableOpacity style={styles.nextButton} onPress={handleNext}>
+          <Text style={styles.nextButtonText}>İleri</Text>
+        </TouchableOpacity>
+      </Animated.View>
     </View>
   );
 };
@@ -95,6 +125,9 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 16,
     backgroundColor: '#f5f5f5',
+  },
+  contentContainer: {
+    flex: 1,
   },
   title: {
     fontSize: 22,

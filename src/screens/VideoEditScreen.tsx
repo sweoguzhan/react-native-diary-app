@@ -6,10 +6,12 @@ import {
   TextInput, 
   TouchableOpacity, 
   ScrollView,
-  Alert
+  Alert,
+  ActivityIndicator
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useVideoStore } from '../store/videoStore';
+import { Video } from '../types';
 
 const VideoEditScreen = () => {
   const navigation = useNavigation();
@@ -17,18 +19,62 @@ const VideoEditScreen = () => {
   // @ts-ignore
   const { videoId } = route.params;
   
-  const video = useVideoStore((state) => state.getVideoById(videoId));
-  const updateVideo = useVideoStore((state) => state.updateVideo);
-  
+  const { getVideoById, updateVideo } = useVideoStore();
+  const [video, setVideo] = useState<Video | null>(null);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   
   useEffect(() => {
-    if (video) {
-      setName(video.name);
-      setDescription(video.description);
+    const loadVideo = async () => {
+      try {
+        setLoading(true);
+        const videoData = await getVideoById(videoId);
+        setVideo(videoData);
+        if (videoData) {
+          setName(videoData.name);
+          setDescription(videoData.description || '');
+        }
+      } catch (error) {
+        console.error('Video yükleme hatası:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadVideo();
+  }, [videoId, getVideoById]);
+  
+  const handleSave = async () => {
+    if (!name.trim()) {
+      Alert.alert('Hata', 'Lütfen bir isim girin');
+      return;
     }
-  }, [video]);
+    
+    try {
+      setSaving(true);
+      await updateVideo(videoId, { name, description });
+      
+      // @ts-ignore
+      navigation.navigate('VideoDetail', { videoId });
+      
+      Alert.alert('Başarılı', 'Video bilgileri güncellendi');
+    } catch (error) {
+      console.error('Video güncelleme hatası:', error);
+      Alert.alert('Hata', 'Video güncellenirken bir hata oluştu');
+    } finally {
+      setSaving(false);
+    }
+  };
+  
+  if (loading) {
+    return (
+      <View style={[styles.container, styles.centerContent]}>
+        <ActivityIndicator size="large" color="#007AFF" />
+      </View>
+    );
+  }
   
   if (!video) {
     return (
@@ -37,20 +83,6 @@ const VideoEditScreen = () => {
       </View>
     );
   }
-  
-  const handleSave = () => {
-    if (!name.trim()) {
-      Alert.alert('Hata', 'Lütfen bir isim girin');
-      return;
-    }
-    
-    updateVideo(videoId, { name, description });
-    
-    // @ts-ignore
-    navigation.navigate('VideoDetail', { videoId });
-    
-    Alert.alert('Başarılı', 'Video bilgileri güncellendi');
-  };
   
   return (
     <ScrollView style={styles.container}>
@@ -75,8 +107,16 @@ const VideoEditScreen = () => {
           numberOfLines={4}
         />
         
-        <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
-          <Text style={styles.saveButtonText}>Kaydet</Text>
+        <TouchableOpacity 
+          style={[styles.saveButton, saving && styles.disabledButton]} 
+          onPress={handleSave}
+          disabled={saving}
+        >
+          {saving ? (
+            <ActivityIndicator color="white" size="small" />
+          ) : (
+            <Text style={styles.saveButtonText}>Kaydet</Text>
+          )}
         </TouchableOpacity>
       </View>
     </ScrollView>
@@ -88,6 +128,10 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 16,
     backgroundColor: '#f5f5f5',
+  },
+  centerContent: {
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   title: {
     fontSize: 22,
@@ -137,6 +181,9 @@ const styles = StyleSheet.create({
     color: 'white',
     fontWeight: 'bold',
     fontSize: 16,
+  },
+  disabledButton: {
+    backgroundColor: '#999',
   },
 });
 

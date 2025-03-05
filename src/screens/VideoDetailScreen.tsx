@@ -1,8 +1,9 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
+import React, { useEffect, useState, useRef } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
 import { Video as ExpoVideo, ResizeMode } from 'expo-av';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { useVideoStore } from '../store/videoStore';
+import { Video } from '../types';
 
 const VideoDetailScreen = () => {
   const route = useRoute();
@@ -10,17 +11,27 @@ const VideoDetailScreen = () => {
   // @ts-ignore
   const { videoId } = route.params;
   
-  const video = useVideoStore((state) => state.getVideoById(videoId));
-  const deleteVideo = useVideoStore((state) => state.deleteVideo);
-  
-  if (!video) {
-    return (
-      <View style={styles.container}>
-        <Text style={styles.errorText}>Video bulunamadı</Text>
-      </View>
-    );
-  }
+  const { getVideoById, deleteVideo } = useVideoStore();
+  const [video, setVideo] = useState<Video | null>(null);
+  const [loading, setLoading] = useState(true);
+  const videoRef = useRef<ExpoVideo | null>(null);
 
+  useEffect(() => {
+    const loadVideo = async () => {
+      try {
+        setLoading(true);
+        const videoData = await getVideoById(videoId);
+        setVideo(videoData);
+      } catch (error) {
+        console.error('Video yükleme hatası:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadVideo();
+  }, [videoId, getVideoById]);
+  
   const handleEdit = () => {
     // @ts-ignore
     navigation.navigate('VideoEdit', { videoId });
@@ -38,19 +49,41 @@ const VideoDetailScreen = () => {
         {
           text: 'Sil',
           style: 'destructive',
-          onPress: () => {
-            deleteVideo(videoId);
-            // @ts-ignore
-            navigation.navigate('Home');
+          onPress: async () => {
+            try {
+              await deleteVideo(videoId);
+              // @ts-ignore
+              navigation.navigate('Home');
+            } catch (error) {
+              console.error('Video silme hatası:', error);
+              Alert.alert('Hata', 'Video silinirken bir hata oluştu');
+            }
           },
         },
       ],
     );
   };
 
+  if (loading) {
+    return (
+      <View style={[styles.container, styles.centerContent]}>
+        <ActivityIndicator size="large" color="#007AFF" />
+      </View>
+    );
+  }
+
+  if (!video) {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.errorText}>Video bulunamadı</Text>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       <ExpoVideo
+        ref={videoRef}
         source={{ uri: video.uri }}
         style={styles.video}
         useNativeControls
@@ -58,6 +91,11 @@ const VideoDetailScreen = () => {
         shouldPlay
         isLooping
         positionMillis={video.startTime * 1000}
+        onPlaybackStatusUpdate={(status) => {
+          if (status.isLoaded && status.positionMillis / 1000 >= video.endTime) {
+            videoRef.current?.setPositionAsync(video.startTime * 1000);
+          }
+        }}
       />
       
       <View style={styles.infoContainer}>
@@ -86,6 +124,10 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 16,
     backgroundColor: '#f5f5f5',
+  },
+  centerContent: {
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   video: {
     width: '100%',

@@ -14,6 +14,7 @@ import { Video as ExpoVideo, ResizeMode } from 'expo-av';
 import * as FileSystem from 'expo-file-system';
 import { useVideoStore } from '../store/videoStore';
 import { Video } from '../types';
+import { validateVideoMetadata } from '../schemas/videoSchema';
 
 const VideoMetadataScreen = () => {
   const navigation = useNavigation();
@@ -24,31 +25,57 @@ const VideoMetadataScreen = () => {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [processing, setProcessing] = useState(false);
+  const [errors, setErrors] = useState<{[key: string]: string}>({});
   
-  // Zustand store'dan addVideo fonksiyonunu al
-  const addVideo = useVideoStore((state) => state.addVideo);
+  const { addVideo } = useVideoStore();
+
+  const validateForm = () => {
+    const result = validateVideoMetadata({
+      name,
+      description,
+      startTime,
+      endTime
+    });
+
+    if (!result.success) {
+      Alert.alert('Hata', result.error || 'Form bilgilerini kontrol edin');
+      return false;
+    }
+    
+    return true;
+  };
 
   const handleSave = async () => {
-    if (!name.trim()) {
-      Alert.alert('Hata', 'Lütfen bir isim girin');
+    if (!validateForm()) {
       return;
     }
 
     setProcessing(true);
 
     try {
-      // Gerçek uygulamada burada FFMPEG ile video kırpma işlemi yapılacak
-      // Şimdilik sadece simüle edelim
-      await new Promise(resolve => setTimeout(resolve, 2000));
-
-      // Yeni bir video ID'si oluştur
       const videoId = Date.now().toString();
       
-      const croppedVideoUri = videoUri;
+      // Kırpılmış video için yeni bir dosya yolu oluştur
+      const fileExtension = videoUri.split('.').pop();
+      const newFileName = `${videoId}.${fileExtension}`;
+      const newVideoUri = `${FileSystem.documentDirectory}videos/${newFileName}`;
       
+      const dirInfo = await FileSystem.getInfoAsync(`${FileSystem.documentDirectory}videos`);
+      if (!dirInfo.exists) {
+        await FileSystem.makeDirectoryAsync(`${FileSystem.documentDirectory}videos`, { intermediates: true });
+      }
+      
+      await FileSystem.copyAsync({
+        from: videoUri,
+        to: newVideoUri
+      });
+      
+      console.log(`Video kopyalandı: ${newVideoUri}`);
+      
+      // Yeni video nesnesini oluştur
       const newVideo: Video = {
         id: videoId,
-        uri: croppedVideoUri,
+        uri: newVideoUri,
         name,
         description,
         startTime,
@@ -57,7 +84,7 @@ const VideoMetadataScreen = () => {
         createdAt: Date.now()
       };
 
-      addVideo(newVideo);
+      await addVideo(newVideo);
 
       // @ts-ignore
       navigation.navigate('Home');
@@ -80,26 +107,30 @@ const VideoMetadataScreen = () => {
         style={styles.video}
         useNativeControls
         resizeMode={ResizeMode.CONTAIN}
+        positionMillis={startTime * 1000}
+        shouldPlay={false}
       />
       
       <View style={styles.form}>
-        <Text style={styles.label}>İsim</Text>
+        <Text style={styles.label}>İsim <Text style={styles.required}>*</Text></Text>
         <TextInput
-          style={styles.input}
+          style={[styles.input, errors.name && styles.inputError]}
           value={name}
           onChangeText={setName}
           placeholder="Video için bir isim girin"
         />
+        {errors.name && <Text style={styles.errorText}>{errors.name}</Text>}
         
         <Text style={styles.label}>Açıklama</Text>
         <TextInput
-          style={[styles.input, styles.textArea]}
+          style={[styles.input, styles.textArea, errors.description && styles.inputError]}
           value={description}
           onChangeText={setDescription}
           placeholder="Video hakkında açıklama girin"
           multiline
           numberOfLines={4}
         />
+        {errors.description && <Text style={styles.errorText}>{errors.description}</Text>}
         
         <Text style={styles.infoText}>
           Seçilen bölüm: {startTime.toFixed(1)}s - {endTime.toFixed(1)}s
@@ -154,6 +185,9 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginBottom: 8,
   },
+  required: {
+    color: 'red',
+  },
   input: {
     borderWidth: 1,
     borderColor: '#ddd',
@@ -161,6 +195,15 @@ const styles = StyleSheet.create({
     padding: 12,
     marginBottom: 16,
     fontSize: 16,
+  },
+  inputError: {
+    borderColor: 'red',
+  },
+  errorText: {
+    color: 'red',
+    fontSize: 12,
+    marginTop: -12,
+    marginBottom: 12,
   },
   textArea: {
     height: 100,
